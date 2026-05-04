@@ -32,10 +32,10 @@ public actor Session {
     /// path.
     nonisolated public let canonicalRoot: URL
 
-    /// The original URL passed in by the caller. Stored so we can balance
-    /// the security-scope start/stop calls — scope is per-URL and the
-    /// canonical URL may not carry the bookmark.
-    private let scopedURL: URL?
+    /// One-shot holder for the security-scoped resource. Acquires at init,
+    /// releases exactly once via ``SecurityScope/release()`` regardless of
+    /// whether ``stop()`` or ``deinit`` runs first.
+    private let securityScope: SecurityScope
 
     /// The throttle window, after clamping to `[150 ms, 5 s]`.
     private let throttle: Duration
@@ -78,8 +78,7 @@ public actor Session {
     public init(path: URL, options: Options = .init()) async throws {
         // 1. Acquire security scope first — needed for realpath /
         //    FSEventStreamCreate to succeed in sandboxed apps.
-        let didStart = path.startAccessingSecurityScopedResource()
-        let scopedURL = didStart ? path : nil
+        let scope = SecurityScope(acquiring: path)
 
         do {
             // 2. Canonicalize.
@@ -116,7 +115,7 @@ public actor Session {
             self.canonicalRoot = canonical
             self.events = stream
             self.continuation = continuation
-            self.scopedURL = scopedURL
+            self.securityScope = scope
             self.throttle = Self.clampedThrottle(options.throttle)
             self.engine = engine
             #if os(macOS)
@@ -131,13 +130,13 @@ public actor Session {
             } catch {
                 engine.stop()
                 continuation.finish()
-                if didStart { path.stopAccessingSecurityScopedResource() }
+                scope.release()
                 throw error
             }
 
             log.notice("session started for \(canonical.path, privacy: .private)")
         } catch {
-            if didStart { path.stopAccessingSecurityScopedResource() }
+            scope.release()
             throw error
         }
     }
@@ -159,7 +158,7 @@ public actor Session {
         throttleTask = nil
         flushBufferLocked()
         continuation.finish()
-        scopedURL?.stopAccessingSecurityScopedResource()
+        securityScope.release()
         log.notice("session stopped")
     }
 
@@ -239,7 +238,7 @@ public actor Session {
         case .rootInvalidated(let url):
             continuation.finish(throwing: WatcherError.rootInvalidated(url))
         }
-        scopedURL?.stopAccessingSecurityScopedResource()
+        securityScope.release()
         log.notice("session torn down by engine")
     }
 
@@ -346,7 +345,7 @@ public actor Session {
         // Synchronous teardown — actor's stop() may not have run.
         engine.stop()
         continuation.finish()
-        scopedURL?.stopAccessingSecurityScopedResource()
+        securityScope.release()
     }
 }
 
