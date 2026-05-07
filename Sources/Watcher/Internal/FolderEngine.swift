@@ -31,8 +31,8 @@ final class FolderEngine: Engine, @unchecked Sendable {
     init(
         url: URL,
         latency: CFTimeInterval,
-        scope: Options.Scope,
-        depth: Options.Depth
+        scope: Watcher.Options.Scope,
+        depth: Watcher.Options.Depth
     ) {
         self.url = url
         self.latency = max(latency, 0)

@@ -6,6 +6,8 @@ nonisolated private let log = Logger(
     category: "Session"
 )
 
+extension Watcher {
+
 /// A live filesystem watcher. Construction starts watching; release (or
 /// `stop()`) tears it down.
 ///
@@ -349,6 +351,8 @@ public actor Session {
     }
 }
 
+}  // extension Watcher
+
 // MARK: - EngineOwner conformance
 
-extension Session: EngineOwner {}
+extension Watcher.Session: EngineOwner {}

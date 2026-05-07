@@ -6,14 +6,14 @@ import Testing
 /// Wait for the consumer task to surface at least one event matching
 /// `predicate`, or time out. Returns all events seen up to that point.
 private func waitForEvents(
-    on session: Session,
-    matching predicate: @escaping @Sendable (Event) -> Bool,
+    on session: Watcher.Session,
+    matching predicate: @escaping @Sendable (Watcher.Event) -> Bool,
     timeout: Duration = .seconds(3)
-) async -> [Event] {
+) async -> [Watcher.Event] {
     let stream = session.events
-    return await withTaskGroup(of: [Event]?.self) { group in
+    return await withTaskGroup(of: [Watcher.Event]?.self) { group in
         group.addTask {
-            var collected: [Event] = []
+            var collected: [Watcher.Event] = []
             do {
                 for try await event in stream {
                     collected.append(event)
@@ -38,9 +38,9 @@ private func waitForEvents(
     let dir = try WatchTestSupport.makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(150)
-    let session = try await Session(path: dir, options: options)
+    let session = try await Watcher.Session(path: dir, options: options)
 
     // Let FSEventStream warm up before mutating.
     try await Task.sleep(for: .milliseconds(150))
@@ -66,9 +66,9 @@ private func waitForEvents(
     let file = dir.appendingPathComponent("existing.txt")
     try "v1".data(using: .utf8)!.write(to: file)
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(150)
-    let session = try await Session(path: dir, options: options)
+    let session = try await Watcher.Session(path: dir, options: options)
 
     try await Task.sleep(for: .milliseconds(200))
 
@@ -93,10 +93,10 @@ private func waitForEvents(
     let file = dir.appendingPathComponent("existing.txt")
     try "v1".data(using: .utf8)!.write(to: file)
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(150)
     options.scope = .fileAddedOrDeleted   // exclude .fileChanged
-    let session = try await Session(path: dir, options: options)
+    let session = try await Watcher.Session(path: dir, options: options)
 
     try await Task.sleep(for: .milliseconds(200))
 
@@ -127,10 +127,10 @@ private func waitForEvents(
     let nestedDir = dir.appendingPathComponent("nested")
     try FileManager.default.createDirectory(at: nestedDir, withIntermediateDirectories: true)
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(150)
     options.depth = .immediate
-    let session = try await Session(path: dir, options: options)
+    let session = try await Watcher.Session(path: dir, options: options)
 
     try await Task.sleep(for: .milliseconds(200))
 
@@ -164,9 +164,9 @@ private func waitForEvents(
 @Test func folderWatchInvalidatesOnRootDeletion() async throws {
     let dir = try WatchTestSupport.makeTempDirectory()
     // We'll delete `dir` ourselves; defer-cleanup is best-effort.
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(150)
-    let session = try await Session(path: dir, options: options)
+    let session = try await Watcher.Session(path: dir, options: options)
 
     let consumer = Task<Error?, Never> {
         do {
@@ -205,7 +205,7 @@ private func waitForEvents(
 @Test func folderWatchInitFailsForMissingPath() async throws {
     let missing = URL(fileURLWithPath: "/var/empty/no-such-dir-\(UUID().uuidString)")
     do {
-        _ = try await Session(path: missing)
+        _ = try await Watcher.Session(path: missing)
         Issue.record("expected init to throw")
     } catch let error as WatcherError {
         if case .pathNotFound = error {
@@ -225,7 +225,7 @@ private func waitForEvents(
     try FileManager.default.createSymbolicLink(at: linkDir, withDestinationURL: realDir)
     defer { try? FileManager.default.removeItem(at: linkDir) }
 
-    let session = try await Session(path: linkDir)
+    let session = try await Watcher.Session(path: linkDir)
     let canonical = session.canonicalRoot
     await session.stop()
     let realCanonical = try PathCanonicalization.canonicalize(realDir)

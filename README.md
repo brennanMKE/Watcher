@@ -32,7 +32,7 @@ Add the package to your `Package.swift`:
 ```swift
 import Watcher
 
-var options = Options()
+var options = Watcher.Options()
 options.throttle = .milliseconds(200)
 
 #if os(macOS)
@@ -40,7 +40,7 @@ options.scope = .all
 options.depth = .infinite
 #endif
 
-let session = try await Session(path: folderURL, options: options)
+let session = try await Watcher.Session(path: folderURL, options: options)
 
 do {
     for try await event in session.events {
@@ -64,13 +64,15 @@ The `Session` reference is the lifetime token. Drop it (or call
 
 ## Public API
 
-| Type            | Purpose                                                          |
-| --------------- | ---------------------------------------------------------------- |
-| `Session`       | Public actor. Owns the watcher; exposes `events` AsyncStream.    |
-| `Event`         | `Sendable`, `Hashable` enum: `.fileAdded`, `.fileDeleted`, `.fileChanged`, `.refreshRequired(scope:)`. |
-| `Options`       | Throttle window (all platforms); `scope`, `depth`, `latency` (macOS). |
-| `WatcherError`  | Construction and runtime errors thrown by `init`/`events`.       |
-| `Watcher`       | Caseless namespace for `logSubsystem`.                           |
+`Session`, `Event`, and `Options` are nested under the `Watcher` namespace; refer to them as `Watcher.Session`, `Watcher.Event`, and `Watcher.Options`. `WatcherError` stays top-level.
+
+| Type                | Purpose                                                          |
+| ------------------- | ---------------------------------------------------------------- |
+| `Watcher`           | Namespace. Holds the public types plus `logSubsystem`.           |
+| `Watcher.Session`   | Public actor. Owns the watcher; exposes `events` AsyncStream.    |
+| `Watcher.Event`     | `Sendable`, `Hashable` enum: `.fileAdded`, `.fileDeleted`, `.fileChanged`, `.refreshRequired(scope:)`. |
+| `Watcher.Options`   | Throttle window (all platforms); `scope`, `depth`, `latency` (macOS). |
+| `WatcherError`      | Construction and runtime errors thrown by `init`/`events`.       |
 
 ### Options
 

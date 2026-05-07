@@ -24,11 +24,11 @@ enum WatchTestSupport {
     /// Drain `events` for up to `deadline` and return everything observed.
     /// Returns early if the stream finishes or throws.
     static func collectEvents(
-        from session: Session,
+        from session: Watcher.Session,
         deadline: Duration
-    ) async -> (events: [Event], thrown: Error?, finished: Bool) {
-        var collected: [Event] = []
-        let task = Task<([Event], Error?, Bool), Never> {
+    ) async -> (events: [Watcher.Event], thrown: Error?, finished: Bool) {
+        var collected: [Watcher.Event] = []
+        let task = Task<([Watcher.Event], Error?, Bool), Never> {
             var thrown: Error?
             var finished = false
             do {
@@ -53,12 +53,12 @@ enum WatchTestSupport {
     let file = dir.appendingPathComponent("watched.txt")
     try WatchTestSupport.touch(file)
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(150)
-    let session = try await Session(path: file, options: options)
+    let session = try await Watcher.Session(path: file, options: options)
 
-    let collector = Task<[Event], Error> {
-        var collected: [Event] = []
+    let collector = Task<[Watcher.Event], Error> {
+        var collected: [Watcher.Event] = []
         for try await event in session.events {
             collected.append(event)
             if collected.count >= 1 { break }
@@ -72,7 +72,7 @@ enum WatchTestSupport {
     await session.flush()
 
     // Wait for at least one event or a small deadline.
-    let result = try await withThrowingTaskGroup(of: [Event].self) { group in
+    let result = try await withThrowingTaskGroup(of: [Watcher.Event].self) { group in
         group.addTask { try await collector.value }
         group.addTask {
             try await Task.sleep(for: .seconds(2))
@@ -95,15 +95,15 @@ enum WatchTestSupport {
     let file = dir.appendingPathComponent("doomed.txt")
     try WatchTestSupport.touch(file)
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(150)
-    let session = try await Session(path: file, options: options)
+    let session = try await Watcher.Session(path: file, options: options)
 
     // Give the source a moment to start.
     try await Task.sleep(for: .milliseconds(50))
 
-    let consumer = Task<([Event], Bool), Error> {
-        var collected: [Event] = []
+    let consumer = Task<([Watcher.Event], Bool), Error> {
+        var collected: [Watcher.Event] = []
         var finished = false
         do {
             for try await event in session.events {
@@ -121,7 +121,7 @@ enum WatchTestSupport {
     await session.flush()
 
     // Wait for the consumer to drain.
-    let (events, finished) = try await withThrowingTaskGroup(of: ([Event], Bool).self) { group in
+    let (events, finished) = try await withThrowingTaskGroup(of: ([Watcher.Event], Bool).self) { group in
         group.addTask { try await consumer.value }
         group.addTask {
             try await Task.sleep(for: .seconds(2))
@@ -140,7 +140,7 @@ enum WatchTestSupport {
 @Test func fileWatchInitFailsForMissingPath() async throws {
     let missing = URL(fileURLWithPath: "/nonexistent/path/that/does/not/exist-\(UUID().uuidString)")
     do {
-        _ = try await Session(path: missing)
+        _ = try await Watcher.Session(path: missing)
         Issue.record("expected init to throw")
     } catch let error as WatcherError {
         if case .pathNotFound = error {
@@ -157,7 +157,7 @@ enum WatchTestSupport {
     let file = dir.appendingPathComponent("file.txt")
     try WatchTestSupport.touch(file)
 
-    var session: Session? = try await Session(path: file)
+    var session: Watcher.Session? = try await Watcher.Session(path: file)
     let stream = session!.events
 
     let task = Task<Bool, Error> {

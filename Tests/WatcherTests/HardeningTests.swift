@@ -7,10 +7,10 @@ import Testing
     let dir = try WatchTestSupport.makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    weak var weakSession: Session?
+    weak var weakSession: Watcher.Session?
 
     do {
-        let session = try await Session(path: dir)
+        let session = try await Watcher.Session(path: dir)
         weakSession = session
         // Hold a strong reference only inside this scope. The consumer's
         // `for try await` does NOT retain the Session — it only retains
@@ -31,18 +31,18 @@ import Testing
     let file = dir.appendingPathComponent("hot.txt")
     try "0".data(using: .utf8)!.write(to: file)
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(300)  // big enough to hold all writes
     options.latency = .milliseconds(50)    // make FSEvents prompt
-    let session = try await Session(path: dir, options: options)
+    let session = try await Watcher.Session(path: dir, options: options)
 
     // Warm-up: FSEventStream needs a moment after start before mutations
     // are reliably reported.
     try await Task.sleep(for: .milliseconds(300))
 
     let stream = session.events
-    let collector = Task<[Event], Never> {
-        var events: [Event] = []
+    let collector = Task<[Watcher.Event], Never> {
+        var events: [Watcher.Event] = []
         do {
             for try await event in stream {
                 events.append(event)
@@ -82,9 +82,9 @@ import Testing
     let dir = try WatchTestSupport.makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: dir) }
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .seconds(2)  // long throttle
-    let session = try await Session(path: dir, options: options)
+    let session = try await Watcher.Session(path: dir, options: options)
 
     try await Task.sleep(for: .milliseconds(150))
 
@@ -134,7 +134,7 @@ import Testing
 @Test func stopIsIdempotent() async throws {
     let dir = try WatchTestSupport.makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: dir) }
-    let session = try await Session(path: dir)
+    let session = try await Watcher.Session(path: dir)
     await session.stop()
     await session.stop()  // must not crash or hang
     await session.stop()
@@ -143,7 +143,7 @@ import Testing
 
 @Test func eventsConformToSendableAndHashable() async throws {
     let url = URL(fileURLWithPath: "/tmp/x")
-    let set: Set<Event> = [.fileAdded(url), .fileChanged(url), .fileAdded(url)]
+    let set: Set<Watcher.Event> = [.fileAdded(url), .fileChanged(url), .fileAdded(url)]
     #expect(set.count == 2, "Event should be Hashable for set-based dedup")
 }
 
@@ -162,10 +162,10 @@ import Testing
     #endif
     defer { try? FileManager.default.removeItem(at: dir.deletingLastPathComponent()) }
 
-    var options = Options()
+    var options = Watcher.Options()
     options.throttle = .milliseconds(1) // below 150 ms floor
     // Construction should succeed; clamp is internal but observable
     // indirectly by the session not throwing.
-    let s = try await Session(path: dir, options: options)
+    let s = try await Watcher.Session(path: dir, options: options)
     await s.stop()
 }
